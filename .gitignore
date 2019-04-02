@@ -127,6 +127,7 @@ DerivedData/
 !default.perspectivev3
 
 ### Xcode Patch ###
+cthread/
 *.xcodeproj/*
 !*.xcodeproj/project.pbxproj
 !*.xcodeproj/xcshareddata/
