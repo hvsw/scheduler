@@ -6,7 +6,15 @@
  */
 #ifndef __cdata__
 #define __cdata__
-#include "ucontext.h"
+
+// To work on macOS
+#define _XOPEN_SOURCE 600
+
+#if APPLE
+    #include "sys/ucontext.h"
+#else
+    #include "ucontext.h"
+#endif
 
 /* Estados das threads
 */
