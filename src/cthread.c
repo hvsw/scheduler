@@ -11,11 +11,6 @@
 #define ERROR -1
 #define NOT_IMPLEMENTED -9
 
-// MARK: - Thread priority
-#define THREAD_PRIORITY_LOW 2
-#define THREAD_PRIORITY_MEDIUM 1
-#define THREAD_PRIORITY_HIGH 0
-
 // MARK: - To make it work on mac
 #ifdef _APPLE_
 //    pthread_threadid_np(thread, &tcb.id)

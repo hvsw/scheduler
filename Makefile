@@ -10,12 +10,16 @@
 # OBSERVAR que as variáveis de ambiente consideram que o Makefile está no diretótio "cthread"
 # 
 
+# HOW TO MAKEFILE:
+# target: prerequisites
+# <TAB> recipe
+
 CC=gcc -g -w
 LIB_DIR=./lib
 INC_DIR=./include
 BIN_DIR=./bin
 SRC_DIR=./src
-TST_DIR=./teste
+TST_DIR=./testes
 
 all: objetos mvObj libcthread.a mvLib main testCCREATE testCJOIN testCYIELD
 
