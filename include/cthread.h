@@ -14,6 +14,7 @@
 #define CSETPRIO_ERROR -1
 
 #include "support.h"
+#include "cdata.h"
 
 typedef struct s_sem {
 	int	count;	/* indica se recurso está ocupado ou não (livre > 0, ocupado = 0) */

@@ -24,6 +24,11 @@
 #define	PROCST_TERMINO	3	/* Processo em estado de terminado */
 
 
+// MARK: - Thread priority
+#define THREAD_PRIORITY_LOW 2
+#define THREAD_PRIORITY_MEDIUM 1
+#define THREAD_PRIORITY_HIGH 0
+
 typedef struct s_TCB { 
 	/* OS CAMPOS ABAIXO NÃO PODEM SER ALTERADOS OU REMOVIDOS
 	*/
