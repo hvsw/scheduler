@@ -25,9 +25,23 @@
 
 
 // MARK: - Thread priority
+//enum ThreadPriority {
+//    High, Medium, Low
+//};
+#define NUMBER_PRIORITY_QUEUES 3
 #define THREAD_PRIORITY_LOW 2
 #define THREAD_PRIORITY_MEDIUM 1
 #define THREAD_PRIORITY_HIGH 0
+
+// MARK: - Thread State
+//enum ThreadState {
+//    Creation, Ready, Running, Blocked, Finish
+//};
+#define THREAD_STATE_CREATION 0
+#define THREAD_STATE_READY 1
+#define THREAD_STATE_RUNNING 2
+#define THREAD_STATE_BLOCKED 3
+#define THREAD_STATE_FINISH 4
 
 typedef struct s_TCB { 
 	/* OS CAMPOS ABAIXO NÃO PODEM SER ALTERADOS OU REMOVIDOS
@@ -40,7 +54,18 @@ typedef struct s_TCB {
 	/* A PARTIR DESSE PONTO PODEM SER ACRESCENTADOS CAMPOS NECESSÁRIOS AO DESENVOLVIMENTO DA BIBLIOTECA
 	*/
 	
-} TCB_t; 
+} TCB_t;
 
+typedef struct s_join {
+    TCB_t* blocked_thread;
+    TCB_t* target_thread;
+} join_t;
+
+typedef struct s_sem {
+    int count; // indica se recurso est‡ ocupado ou n‹o (livre > 0, ocupado ² 0)
+    PFILA2 fila; // ponteiro para uma fila de threads bloqueadas no sem‡foro
+} csem_t;
+
+struct TCB_t* join_list[999];
 
 #endif

@@ -19,4 +19,9 @@
 #define DEBUG_PRINT(fmt, args...)
 #endif
 
+
+void print_all_queues();
+void print_joins();
+void print_queue(FILA2 queue);
+
 #endif /* debug_h */
