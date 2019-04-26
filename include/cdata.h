@@ -61,11 +61,6 @@ typedef struct s_join {
     TCB_t* target_thread;
 } join_t;
 
-typedef struct s_sem {
-    int count; // indica se recurso est‡ ocupado ou n‹o (livre > 0, ocupado ² 0)
-    PFILA2 fila; // ponteiro para uma fila de threads bloqueadas no sem‡foro
-} csem_t;
-
 struct TCB_t* join_list[999];
 
 #endif
