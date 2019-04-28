@@ -16,6 +16,11 @@
 #include "../include/support.h"
 
 // MARK: - Debug
+// SE ESTIVER OCORRENDO FALHA DE SEGMENTAÇÃO/SEGMENTATION FAULT,
+// COMENTE A LINHA QUE DEFINE A VARIAVEL "DEBUG"!
+// Isso ocorre pois ao tentar voltar pra thread main, não temos
+// mais a referencia de __func__, causando uma falha de segmentação
+
 #define DEBUG 3
 
 #if defined(DEBUG) && DEBUG > 0
