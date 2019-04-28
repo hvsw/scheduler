@@ -6,8 +6,6 @@
 //  Copyright © 2019 Henrique Valcanaia. All rights reserved.
 //
 
-#include <stdio.h>
-#include "../include/cdata.h"
 #include "debug.h"
 
 // MARK: - Helpers

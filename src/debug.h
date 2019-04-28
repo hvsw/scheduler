@@ -9,6 +9,10 @@
 #ifndef debug_h
 #define debug_h
 
+#include <stdio.h>
+#include <stdlib.h>
+#include "../include/cdata.h"
+#include "../include/cthread.h"
 #include "../include/support.h"
 
 // MARK: - Debug

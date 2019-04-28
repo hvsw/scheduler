@@ -15,13 +15,17 @@ void* func2(void *arg) {
 
 void* func1(void *arg) {
     printf("Eu sou a thread ID1 imprimindo %d\n", *((int *)arg));
-    ccreate(func2, (void*)&arg, THREAD_PRIORITY_HIGH);
+    int tid2 = ccreate(func2, (void*)&arg, THREAD_PRIORITY_HIGH);
+    printf("Thread %d created\n", tid2);
+    cjoin(tid2);
     return 0;
 }
 
 int main(int argc, char *argv[]) {
     argc = 10;
-    cjoin(ccreate(func1, (void*)&argc, THREAD_PRIORITY_HIGH));
+    int tid1 = ccreate(func1, (void*)&argc, THREAD_PRIORITY_HIGH);
+    printf("Thread %d created\n", tid1);
+    cjoin(tid1);
     printf("Main chegou ao fim\n");
     return 0;
 }

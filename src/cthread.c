@@ -84,19 +84,21 @@ void release_threads_from_tid(int tid) {
 TCB_t* find_next_thread() {
     TCB_t* thread;
     int priority;
-    for (priority = THREAD_PRIORITY_HIGH; priority > THREAD_PRIORITY_LOW; priority--) {
+    for (priority = THREAD_PRIORITY_HIGH; priority < THREAD_PRIORITY_LOW; priority++) {
         FILA2 queue = ready[priority];
         int set_iterator = FirstFila2(&queue);
         if (set_iterator == 0) {
             TCB_t* thread = (TCB_t*)GetAtIteratorFila2(&queue);
             if (thread != NULL) {
+                DEBUG_PRINT("Found next thread!\n");
                 return thread;
             }
         } else {
-            printf("Error while trying to set iterator to first position");
+            DEBUG_PRINT("Error while trying to set iterator to first position");
         }
     }
     
+    DEBUG_PRINT("Next thread not found, bummer!\n");
     return NULL;
 }
 
@@ -134,39 +136,30 @@ void schedule() {
     
     //se running thread nula, quer dizer que foi yield. logo, se não nula devemos assumir que a thread encerrou
     if (running_thread != NULL) {
-        //DEBUG_PRINT("Running Thread Existe; Assume que a thread encerrou\n");
+        DEBUG_PRINT("Running Thread Existe; Assume que a thread encerrou\n");
         release_threads_from_tid(running_thread->tid);
         running_thread = NULL;
     }
     
-    int readyQueuesEmptyOrError = (FirstFila2(&ready[THREAD_PRIORITY_LOW]) != 0);
-    readyQueuesEmptyOrError = readyQueuesEmptyOrError || (FirstFila2(&ready[THREAD_PRIORITY_MEDIUM]) != 0);
-    readyQueuesEmptyOrError = readyQueuesEmptyOrError || (FirstFila2(&ready[THREAD_PRIORITY_HIGH]) != 0);
-    if (readyQueuesEmptyOrError) {
-        return;
-    }
-    
-    
     TCB_t* next_thread = find_next_thread();
-    //DEBUG_PRINT("next_thread: tid(%d)\n", next_thread->tid);
+    DEBUG_PRINT("next_thread: tid(%d)\n", next_thread->tid);
     // print_all_queues();
     
     running_thread = next_thread;
     if (remove_thread(next_thread->tid, ready[next_thread->prio]) != 0) {
-        //DEBUG_PRINT("problema ao deletar thread corrente da fila de aptos\n");
+        DEBUG_PRINT("problema ao deletar thread corrente da fila de aptos\n");
     }
     
     running_thread->state = THREAD_STATE_RUNNING;
     // print_all_queues();
     
-    //DEBUG_PRINT("Running thread: %d", running_thread->tid);
+    DEBUG_PRINT("Running thread: %d", running_thread->tid);
     
     setcontext(&running_thread->context);
 }
 
 int generate_thread_id() {
-    currentThreadId += 1;
-    return currentThreadId;
+    return currentThreadId++;
 }
 
 // MARK: Init
@@ -189,8 +182,12 @@ void create_main_tcb() {
 
 void init_queues() {
     int priority = 0;
-    while (priority++ < NUMBER_PRIORITY_QUEUES) {
-        CreateFila2(&ready[priority]);
+    while (priority < NUMBER_PRIORITY_QUEUES) {
+        DEBUG_PRINT("Initializing queue %d\n", priority);
+        if (CreateFila2(&ready[priority]) != 0) {
+            DEBUG_PRINT("Error creating queue %d\n", priority);
+        }
+        priority++;
     }
     CreateFila2(&blocked);
     CreateFila2(&joins);
@@ -205,7 +202,7 @@ void init() {
 
 // MARK: Public methods
 int ccreate (void* (*start)(void*), void *arg, int prio) {
-    return NOT_IMPLEMENTED;
+//    return NOT_IMPLEMENTED;
     
     if (initialized == 0) {
         init();
@@ -225,14 +222,14 @@ int ccreate (void* (*start)(void*), void *arg, int prio) {
         tcb->context = context;
         tcb->prio = prio;
         if (AppendFila2(&ready[prio], (void*) tcb) == 0) {
-//            DEBUG_PRINT("Adicionou na fila %d\n", tcb->tid);
+            DEBUG_PRINT("Adicionou tid(%d) na fila\n", tcb->tid);
             return tcb->tid;
         } else {
-//            DEBUG_PRINT("Erro ao adicionar na fila");
+            DEBUG_PRINT("Erro ao adicionar na fila");
             return CCREATE_ERROR;
         }
     } else {
-//        DEBUG_PRINT("Erro ao obter context");
+        DEBUG_PRINT("Erro ao obter context");
         return CCREATE_ERROR;
     }
 }
@@ -245,8 +242,102 @@ int cyield(void) {
 	return NOT_IMPLEMENTED;
 }
 
+// MARK: - CJOIN
+#define NOT_TARGETED 0
+#define TARGETED 1
+int is_thread_targeted(int tid) {
+    if(FirstFila2(&joins) != 0) {
+        //DEBUG_PRINT("CJOIN: Fila de Joins vazia ou ERRO\n");
+        return NOT_TARGETED;
+    }
+    do {
+        join_t* join = GetAtIteratorFila2(&joins);
+        if (join == NULL)
+            return NOT_TARGETED;
+        if (join->target_thread->tid == tid)
+            return TARGETED;
+    } while (NextFila2(&joins) == 0);
+    return NOT_TARGETED;
+}
+
+/*!
+ @brief Retorna um TCB na fila "queue" com o thread id "tid"
+ */
+TCB_t* find_thread_with_id(int tid, PFILA2 queue) {
+    if (FirstFila2(queue) != 0) {
+        DEBUG_PRINT("Buscando TCB: Fila Vazia ou erro\n");
+        return NULL;
+    }
+    
+    TCB_t* thread;
+    do {
+        thread = GetAtIteratorFila2(queue);
+        if (thread == NULL) {
+            DEBUG_PRINT("End or empty for queue\n");
+            return NULL;
+        }
+        
+        if (thread->tid == tid) {
+            DEBUG_PRINT("Thread found! yey\n");
+            return thread;
+        } else {
+            DEBUG_PRINT("Searching for %d, checking %d\n", tid, thread->tid);
+        }
+        
+    } while (NextFila2(queue) == 0);
+    
+    DEBUG_PRINT("Thread %d not found(really!)\n", tid);
+    return NULL;
+}
+
+#define CJOIN_SUCCESS 0
+#define CJOIN_THREAD_FINISHED -1
+#define CJOIN_THREAD_ALREADY_JOINED -2
+#define CJOIN_FAIL -3
 int cjoin(int tid) {
-	return NOT_IMPLEMENTED;
+    //DEBUG_PRINT("***************** cjoin(%d) *****************\n", tid);
+    //DEBUG_PRINT("Chamado por: %d\n para esperar: %d\n", running_thread->tid, tid);
+//    print_all_queues();
+    
+    if(tid == MAIN_THREAD_ID) {
+        DEBUG_PRINT("Can't join main thread! \n");
+        return CJOIN_FAIL;
+    }
+    
+    //achar tcb do tid
+    TCB_t* target_thread = NULL;
+    int prio = THREAD_PRIORITY_HIGH;
+    while ((prio < THREAD_PRIORITY_LOW) && (target_thread == NULL)) {
+        DEBUG_PRINT("Looking for tid(%d) at priority queue(%d)\n", tid, prio);
+        target_thread = find_thread_with_id(tid, &ready[prio]);
+        prio++;
+    }
+    DEBUG_PRINT("Adeus loop\n");
+    if (target_thread == NULL) {
+        DEBUG_PRINT("Target thread %d not found\n", tid);
+        return CJOIN_FAIL;
+    }
+    
+    //checar se thread alvo já tem alguem no aguardo
+    if (is_thread_targeted(tid) == TARGETED) {
+        DEBUG_PRINT("Já há uma thread esperando por está\n");
+        return CJOIN_THREAD_ALREADY_JOINED;
+    }
+    
+    //cria o join
+    join_t* join = (join_t*) malloc(sizeof(join_t));
+    join->blocked_thread = running_thread;
+    join->target_thread = target_thread;
+    AppendFila2(&joins, (void*) join);
+    
+    TCB_t* calling_thread = running_thread;
+    calling_thread->state = THREAD_STATE_BLOCKED;
+    
+    AppendFila2(&blocked, (void*)calling_thread);
+    running_thread = NULL;
+    swapcontext(&calling_thread->context, &scheduler);
+    
+    return CJOIN_SUCCESS;
 }
 
 int csem_init(csem_t *sem, int count) {
