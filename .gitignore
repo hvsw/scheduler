@@ -65,6 +65,8 @@ DerivedData/
 
 /cthread
 /cthread/*
+/testes
+/testes/*
 
 
 # End of https://www.gitignore.io/api/macos,xcode
