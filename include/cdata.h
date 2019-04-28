@@ -63,4 +63,10 @@ typedef struct s_join {
 
 struct TCB_t* join_list[999];
 
+#include "support.h"
+// MARK: Queues
+FILA2 ready[NUMBER_PRIORITY_QUEUES];
+FILA2 blocked;
+FILA2 joins;
+
 #endif
