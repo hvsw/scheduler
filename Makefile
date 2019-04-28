@@ -14,6 +14,9 @@
 # target: prerequisites
 # <TAB> recipe
 
+# Manually build test_cidentify
+# gcc -g -w -o ./testes/test_cidentify ./testes/test_cidentify.c -L./lib -lcthread -Wall
+
 CC=gcc -g -w
 LIB_DIR=./lib
 INC_DIR=./include
@@ -21,8 +24,6 @@ BIN_DIR=./bin
 SRC_DIR=./src
 TST_DIR=./testes
 MAIN_NAME=mainProg
-
-gcc -g -w -o ./testes/test_cidentify ./testes/test_cidentify.c -L./lib -lcthread -Wall
 
 all: objetos mvObj libcthread.a mvLib main testCCREATE testCIDENTIFY testCJOIN testCYIELD
 
@@ -54,4 +55,4 @@ testCYIELD:
 	$(CC) -o $(TST_DIR)/test_cyield $(TST_DIR)/test_cyield.c -L$(LIB_DIR) -lcthread -Wall
 
 clean:
-	rm -rf MAIN_NAME $(LIB_DIR)/*.a $(BIN_DIR)/cthread.o $(TST_DIR)/*.o $(TST_DIR)/test_cjoin $(TST_DIR)/test_ccreate $(TST_DIR)/test_cyield $(SRC_DIR)/*~ $(INC_DIR)/*~ *~
+	rm -rf MAIN_NAME $(LIB_DIR)/*.a $(BIN_DIR)/cthread.o $(TST_DIR)/*.o $(TST_DIR)/test_cjoin $(TST_DIR)/test_ccreate $(TST_DIR)/test_cyield $(TST_DIR)/test_cidentify $(SRC_DIR)/*~ $(INC_DIR)/*~ *~
