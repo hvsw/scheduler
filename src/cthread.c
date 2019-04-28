@@ -27,11 +27,6 @@
 // MARK: - Local vars
 TCB_t* running_thread;
 
-// MARK: Queues
-FILA2 ready[NUMBER_PRIORITY_QUEUES];
-FILA2 blocked;
-FILA2 joins;
-
 /*!
  @brief Partiremos do 1 pois a 0 será a main
  */
@@ -86,9 +81,56 @@ void release_threads_from_tid(int tid) {
     return;
 }
 
+TCB_t* find_next_thread() {
+    TCB_t* thread;
+    int priority;
+    for (priority = THREAD_PRIORITY_HIGH; priority > THREAD_PRIORITY_LOW; priority--) {
+        FILA2 queue = ready[priority];
+        int set_iterator = FirstFila2(&queue);
+        if (set_iterator == 0) {
+            TCB_t* thread = (TCB_t*)GetAtIteratorFila2(&queue);
+            if (thread != NULL) {
+                return thread;
+            }
+        } else {
+            printf("Error while trying to set iterator to first position");
+        }
+    }
+    
+    return NULL;
+}
+
+#define REMOVE_THREAD_SUCCESS 0
+#define REMOVE_THREAD_ERROR_OR_EMPTY_QUEUE -1
+#define REMOVE_THREAD_TID_NOT_FOUND -2
+int remove_thread(int tid, FILA2 queue) {
+    if(FirstFila2(&queue) != 0) {
+        //DEBUG_PRINT("Fila vazia ou ERRO\n");
+        return REMOVE_THREAD_ERROR_OR_EMPTY_QUEUE;
+    }
+    
+    TCB_t* thread;
+    do {
+        thread = GetAtIteratorFila2(&queue);
+        if (thread == NULL) {
+            //DEBUG_PRINT("tid %d not found", tid);
+            return REMOVE_THREAD_TID_NOT_FOUND;
+        }
+        
+        if (thread->tid == tid) {
+            //DEBUG_PRINT("REMOVTHREAD: target = %d, found = %d\n",tid, thread->tid );
+            int success = DeleteAtIteratorFila2(&queue);
+            //DEBUG_PRINT("Delete: %d\n", success);
+            return REMOVE_THREAD_SUCCESS;
+        }
+    } while (NextFila2(&queue) == 0);
+    
+    return REMOVE_THREAD_SUCCESS;
+}
+
 void schedule() {
     //DEBUG_PRINT("***************** %s *****************\n", __func__);
-    print_all_queues();
+//    print_all_queues();
     
     //se running thread nula, quer dizer que foi yield. logo, se não nula devemos assumir que a thread encerrou
     if (running_thread != NULL) {
@@ -110,7 +152,7 @@ void schedule() {
     // print_all_queues();
     
     running_thread = next_thread;
-    if (remove_thread(next_thread->tid, ready) != 0) {
+    if (remove_thread(next_thread->tid, ready[next_thread->prio]) != 0) {
         //DEBUG_PRINT("problema ao deletar thread corrente da fila de aptos\n");
     }
     
@@ -146,7 +188,8 @@ void create_main_tcb() {
 }
 
 void init_queues() {
-    for (int priority = 0; priority < NUMBER_PRIORITY_QUEUES; priority++) {
+    int priority = 0;
+    while (priority++ < NUMBER_PRIORITY_QUEUES) {
         CreateFila2(&ready[priority]);
     }
     CreateFila2(&blocked);
@@ -218,8 +261,12 @@ int csignal(csem_t *sem) {
 	return NOT_IMPLEMENTED;
 }
 
+#define CIDENTIFY_SUCCESS 0
+#define CIDENTIFY_ERROR -1
 int cidentify(char *name, int size) {
-    return sizeof(strncpy(name, "Henrique Valcanaia 240501\nLucas Bauer - 237054\nAlvaro Souza Pereira da Silva - 231162", size));
+    char * result = strncpy(name, "Henrique Valcanaia 240501\nLucas Bauer - 237054\nAlvaro Souza Pereira da Silva - 231162\n", size);
+    return result == NULL ? CIDENTIFY_ERROR : CIDENTIFY_SUCCESS;
+    
 }
 
 

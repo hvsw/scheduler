@@ -9,6 +9,8 @@
 #ifndef debug_h
 #define debug_h
 
+#include "../include/support.h"
+
 // MARK: - Debug
 #define DEBUG 3
 
@@ -20,8 +22,8 @@
 #endif
 
 
-void print_all_queues();
-void print_joins();
+void print_all_queues(void);
+void print_joins(void);
 void print_queue(FILA2 queue);
 
 #endif /* debug_h */

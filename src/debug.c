@@ -6,6 +6,8 @@
 //  Copyright © 2019 Henrique Valcanaia. All rights reserved.
 //
 
+#include <stdio.h>
+#include "../include/cdata.h"
 #include "debug.h"
 
 // MARK: - Helpers
@@ -42,9 +44,13 @@ void print_joins() {
     //    return;
 }
 
-void print_all_queues() {
+void print_all_queues(void) {
     //DEBUG_PRINT("Ready\n");
-    print_queue(ready);
+    int prio;
+    for (prio = THREAD_PRIORITY_HIGH; prio > THREAD_PRIORITY_LOW; prio++) {
+        printf("Printing Queue(prio: %d)", prio);
+        print_queue(ready[prio]);
+    }
     //DEBUG_PRINT("Blocked\n");
     print_queue(blocked);
     //DEBUG_PRINT("Joins\n");
