@@ -5,7 +5,7 @@
 #include "../include/support.h"
 #include <string.h>
 #include <stdlib.h>
-#include "debug.h"
+#include "debug.c"
 
 #define CCREATE_ERROR -1
 #define CYIELD_ERROR -1
@@ -83,8 +83,8 @@ void release_threads_from_tid(int tid) {
 
 TCB_t* find_next_thread() {
     TCB_t* thread;
-    int priority;
-    for (priority = THREAD_PRIORITY_HIGH; priority < THREAD_PRIORITY_LOW; priority++) {
+    int priority = THREAD_PRIORITY_HIGH;
+    for (; priority < THREAD_PRIORITY_LOW; priority++) {
         FILA2 queue = ready[priority];
         int set_iterator = FirstFila2(&queue);
         if (set_iterator == 0) {
@@ -94,7 +94,7 @@ TCB_t* find_next_thread() {
                 return thread;
             }
         } else {
-            DEBUG_PRINT("Error while trying to set iterator to first position");
+            DEBUG_PRINT("Error while trying to set iterator to first position\n");
         }
     }
     
@@ -107,7 +107,7 @@ TCB_t* find_next_thread() {
 #define REMOVE_THREAD_TID_NOT_FOUND -2
 int remove_thread(int tid, FILA2 queue) {
     if(FirstFila2(&queue) != 0) {
-        //DEBUG_PRINT("Fila vazia ou ERRO\n");
+        DEBUG_PRINT("Fila (%d) vazia ou ERRO\n", queue);
         return REMOVE_THREAD_ERROR_OR_EMPTY_QUEUE;
     }
     
@@ -115,14 +115,14 @@ int remove_thread(int tid, FILA2 queue) {
     do {
         thread = GetAtIteratorFila2(&queue);
         if (thread == NULL) {
-            //DEBUG_PRINT("tid %d not found", tid);
+            DEBUG_PRINT("tid(%d) not found\n", tid);
             return REMOVE_THREAD_TID_NOT_FOUND;
         }
         
         if (thread->tid == tid) {
-            //DEBUG_PRINT("REMOVTHREAD: target = %d, found = %d\n",tid, thread->tid );
+            DEBUG_PRINT("REMOVTHREAD: target = %d, found = %d\n", tid, thread->tid );
             int success = DeleteAtIteratorFila2(&queue);
-            //DEBUG_PRINT("Delete: %d\n", success);
+            DEBUG_PRINT("Delete: %d\n", success);
             return REMOVE_THREAD_SUCCESS;
         }
     } while (NextFila2(&queue) == 0);
@@ -143,7 +143,7 @@ void schedule() {
     
     TCB_t* next_thread = find_next_thread();
     DEBUG_PRINT("next_thread: tid(%d)\n", next_thread->tid);
-    // print_all_queues();
+    print_all_queues();
     
     running_thread = next_thread;
     if (remove_thread(next_thread->tid, ready[next_thread->prio]) != 0) {
@@ -153,7 +153,7 @@ void schedule() {
     running_thread->state = THREAD_STATE_RUNNING;
     // print_all_queues();
     
-    DEBUG_PRINT("Running thread: %d", running_thread->tid);
+    DEBUG_PRINT("Running thread: %d\n", running_thread->tid);
     
     setcontext(&running_thread->context);
 }
@@ -202,8 +202,6 @@ void init() {
 
 // MARK: Public methods
 int ccreate (void* (*start)(void*), void *arg, int prio) {
-//    return NOT_IMPLEMENTED;
-    
     if (initialized == 0) {
         init();
     }
@@ -234,32 +232,6 @@ int ccreate (void* (*start)(void*), void *arg, int prio) {
     }
 }
 
-int csetprio(int tid, int prio) {
-    return NOT_IMPLEMENTED;
-}
-
-int cyield(void) {
-	return NOT_IMPLEMENTED;
-}
-
-// MARK: - CJOIN
-#define NOT_TARGETED 0
-#define TARGETED 1
-int is_thread_targeted(int tid) {
-    if(FirstFila2(&joins) != 0) {
-        //DEBUG_PRINT("CJOIN: Fila de Joins vazia ou ERRO\n");
-        return NOT_TARGETED;
-    }
-    do {
-        join_t* join = GetAtIteratorFila2(&joins);
-        if (join == NULL)
-            return NOT_TARGETED;
-        if (join->target_thread->tid == tid)
-            return TARGETED;
-    } while (NextFila2(&joins) == 0);
-    return NOT_TARGETED;
-}
-
 /*!
  @brief Retorna um TCB na fila "queue" com o thread id "tid"
  */
@@ -288,6 +260,68 @@ TCB_t* find_thread_with_id(int tid, PFILA2 queue) {
     
     DEBUG_PRINT("Thread %d not found(really!)\n", tid);
     return NULL;
+}
+
+int csetprio(int tid, int prio) {
+    // De acordo com a especificação: (Na versão 2019/01, deixar sempre esse campo como NULL)
+    // Neste caso, não havendo tid, não é possível buscar a thread que deseja-se
+    // alterar a prioridade, portanto, a execução desta função sempre retornará sucesso
+    return CSETPRIO_SUCCESS;
+    
+    int currentPrio = THREAD_PRIORITY_HIGH;
+    for (; currentPrio < THREAD_PRIORITY_LOW; currentPrio++) {
+        TCB_t* thread = find_thread_with_id(tid, &ready[currentPrio]);
+        if (thread != NULL) {
+            thread->prio = prio;
+            return CSETPRIO_SUCCESS;
+        }
+    }
+    
+    return CSETPRIO_ERROR;
+}
+
+#define CYIELD_SUCCESS 0
+#define CYIELD_ERROR -1
+int cyield(void) {
+    //DEBUG_PRINT("***************** cyield(%d) *****************\n", running_thread->tid);
+    
+    TCB_t* thread;
+    thread = running_thread;
+    thread->state = THREAD_STATE_READY;
+    
+    if(FirstFila2(&ready[thread->prio]) != 0) {
+        DEBUG_PRINT("Fila de Aptos Vazia, cyield negado!\n");
+        return CYIELD_ERROR;
+    }
+    
+    if (AppendFila2(&ready[thread->prio], (void*) thread) != 0) {
+        DEBUG_PRINT("Erro adicionando thread a fila de aptos. cyield negado.\n");
+        return CYIELD_ERROR;
+    }
+    
+    running_thread = NULL;
+    
+    swapcontext(&thread->context, &scheduler);
+    
+    return CYIELD_SUCCESS;
+}
+
+// MARK: - CJOIN
+#define NOT_TARGETED 0
+#define TARGETED 1
+int is_thread_targeted(int tid) {
+    if(FirstFila2(&joins) != 0) {
+        //DEBUG_PRINT("CJOIN: Fila de Joins vazia ou ERRO\n");
+        return NOT_TARGETED;
+    }
+    do {
+        join_t* join = GetAtIteratorFila2(&joins);
+        if (join == NULL)
+            return NOT_TARGETED;
+        if (join->target_thread->tid == tid)
+            return TARGETED;
+    } while (NextFila2(&joins) == 0);
+    return NOT_TARGETED;
 }
 
 #define CJOIN_SUCCESS 0
@@ -340,16 +374,112 @@ int cjoin(int tid) {
     return CJOIN_SUCCESS;
 }
 
-int csem_init(csem_t *sem, int count) {
-	return NOT_IMPLEMENTED;
+#define CSEM_INIT_SUCCESS 0
+#define CSEM_INIT_ERROR_CREATE_QUEUE -1
+int csem_init (csem_t *sem, int count) {
+    sem->count = count;
+    sem->fila = (PFILA2) malloc(sizeof(FILA2));
+    
+    if (CreateFila2(sem->fila) != 0) {
+        DEBUG_PRINT("Erro ao alocar fila para o semaforo");
+        return CSEM_INIT_ERROR_CREATE_QUEUE;
+    }
+    
+    return CSEM_INIT_SUCCESS;
 }
 
-int cwait(csem_t *sem) {
-	return NOT_IMPLEMENTED;
+#define CWAIT_SUCCESS 0
+#define CWAIT_ERROR_CREATE_QUEUE -1
+int cwait (csem_t *sem) {
+    DEBUG_PRINT("***************** CWAIT *****************\n");
+    if (!initialized) {
+        init();
+    }
+    
+    if (sem->fila == NULL) {
+        sem->fila = (PFILA2) malloc(sizeof(FILA2));
+        if (CreateFila2(sem->fila) != 0) {
+            //DEBUG_PRINT("\n");
+            return CWAIT_ERROR_CREATE_QUEUE;
+        }
+    }
+    
+    sem->count--;
+    // sem recursos disponivel
+    if (sem->count < 0) {
+        TCB_t* thread;
+        thread = running_thread;
+        thread->state = THREAD_STATE_BLOCKED;
+        
+        AppendFila2(&blocked, (void*) thread);
+        AppendFila2(sem->fila, (void*) thread);
+        
+        running_thread = NULL;
+        
+        swapcontext(&thread->context, &scheduler);
+    }
+    
+    return CWAIT_SUCCESS;
 }
 
-int csignal(csem_t *sem) {
-	return NOT_IMPLEMENTED;
+#define MOVE_THREAD_SUCCESS 0
+#define MOVE_THREAD_ERROR_OR_EMPTY_QUEUE -1
+#define MOVE_THREAD_TID_NOT_FOUND -2
+int move_thread(int tid, FILA2 queue, FILA2 dest) {
+    if(FirstFila2(&queue) != 0) {
+        //DEBUG_PRINT("Fila de Origem vazia ou ERRO\n");
+        return MOVE_THREAD_ERROR_OR_EMPTY_QUEUE;
+    }
+    TCB_t* thread;
+    do {
+        thread = GetAtIteratorFila2(&queue);
+        if (thread == NULL)
+            return MOVE_THREAD_TID_NOT_FOUND;
+        
+        if (thread->tid == tid) {
+            DEBUG_PRINT("MOVTHREAD: target = %d, found = %d\n",tid, thread->tid );
+            DEBUG_PRINT("Append: %d\n", AppendFila2(&dest, &thread));
+            DEBUG_PRINT("Delete:%d\n", DeleteAtIteratorFila2(&queue));
+            return MOVE_THREAD_SUCCESS;
+        }
+    } while (NextFila2(&queue) == 0);
+    
+    return MOVE_THREAD_SUCCESS;
+}
+
+#define CSIGNAL_SUCCESS 0
+#define CSIGNAL_ERROR_UNINITIALIZED -1
+#define CSIGNAL_ERROR_REMOVE_THREAD_FROM_BLOCKED -2
+int csignal (csem_t *sem) {
+    DEBUG_PRINT("************** CSIGNAL **************\n");
+    if (!initialized) {
+        init();
+    }
+    
+    if (sem->fila == NULL) {
+        DEBUG_PRINT("Signal antes do wait ou semaforo nao inicializado");
+        return CSIGNAL_ERROR_UNINITIALIZED;
+    }
+    
+    if (FirstFila2(sem->fila) != 0) {
+        FREE(sem->fila);
+        return CSIGNAL_SUCCESS;
+    }
+    
+    sem->count++;
+    TCB_t* thread;
+    thread = (TCB_t*) GetAtIteratorFila2(sem->fila);
+    thread->state = THREAD_STATE_READY;
+//    print_all_queues();
+    DEBUG_PRINT("SIGNAL VAI LIBERAR THREAD: %d\n", thread->tid);
+    DeleteAtIteratorFila2(sem->fila);
+    
+    if (move_thread(thread->tid, blocked, ready[thread->prio]) != 0) {
+        DEBUG_PRINT("Erro ao remover thread(%d) da fila de bloqueados", thread->tid);
+        return CSIGNAL_ERROR_REMOVE_THREAD_FROM_BLOCKED;
+    }
+//    print_all_queues();
+    return CSIGNAL_SUCCESS;
 }
 
 #define CIDENTIFY_SUCCESS 0
