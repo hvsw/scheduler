@@ -25,7 +25,7 @@ SRC_DIR=./src
 TST_DIR=./testes
 MAIN_NAME=mainProg
 
-all: objetos mvObj libcthread.a mvLib main testCCREATE testCIDENTIFY testCJOIN testCYIELD
+all: objetos mvObj libcthread.a mvLib main testCCREATE testCJOIN testCYIELD
 
 objetos: $(SRC_DIR)/cthread.c $(INC_DIR)/cdata.h $(INC_DIR)/cthread.h $(INC_DIR)/support.h
 	$(CC) -c $(SRC_DIR)/cthread.c -Wall
@@ -42,9 +42,6 @@ mvLib:
 main:
 	$(CC) -o MAIN_NAME main.c -L$(LIB_DIR) -lcthread -Wall
 
-testCIDENTIFY:
-    $(CC) -o $(TST_DIR)/test_cidentify $(TST_DIR)/test_cidentify.c -L$(LIB_DIR) -lcthread -Wall
-
 testCCREATE:
 	$(CC) -o $(TST_DIR)/test_ccreate $(TST_DIR)/test_ccreate.c -L$(LIB_DIR) -lcthread -Wall
 
@@ -55,4 +52,4 @@ testCYIELD:
 	$(CC) -o $(TST_DIR)/test_cyield $(TST_DIR)/test_cyield.c -L$(LIB_DIR) -lcthread -Wall
 
 clean:
-	rm -rf MAIN_NAME $(LIB_DIR)/*.a $(BIN_DIR)/cthread.o $(TST_DIR)/*.o $(TST_DIR)/test_cjoin $(TST_DIR)/test_ccreate $(TST_DIR)/test_cyield $(TST_DIR)/test_cidentify $(SRC_DIR)/*~ $(INC_DIR)/*~ *~
+	rm -rf MAIN_NAME $(LIB_DIR)/*.a $(BIN_DIR)/cthread.o $(TST_DIR)/*.o $(TST_DIR)/test_cjoin $(TST_DIR)/test_ccreate $(TST_DIR)/test_cyield $(SRC_DIR)/*~ $(INC_DIR)/*~ *~
