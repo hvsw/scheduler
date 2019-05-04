@@ -25,7 +25,7 @@ SRC_DIR=./src
 TST_DIR=./testes
 MAIN_NAME=mainProg
 
-all: objetos mvObj libcthread.a mvLib main testCCREATE testCJOIN testCYIELD
+all: objetos mvObj libcthread.a mvLib main testCCREATE testCJOIN testCYIELD testCWAIT
 
 objetos: $(SRC_DIR)/cthread.c $(INC_DIR)/cdata.h $(INC_DIR)/cthread.h $(INC_DIR)/support.h
 	$(CC) -c $(SRC_DIR)/cthread.c -Wall
@@ -50,6 +50,9 @@ testCJOIN:
 
 testCYIELD:
 	$(CC) -o $(TST_DIR)/test_cyield $(TST_DIR)/test_cyield.c -L$(LIB_DIR) -lcthread -Wall
+
+testCWAIT:
+	$(CC) -o $(TST_DIR)/test_cwait $(TST_DIR)/test_cwait.c -L$(LIB_DIR) -lcthread -Wall
 
 clean:
 	rm -rf $(MAIN_NAME) $(LIB_DIR)/*.a $(BIN_DIR)/cthread.o $(TST_DIR)/*.o $(TST_DIR)/test_cjoin $(TST_DIR)/test_ccreate $(TST_DIR)/test_cyield $(SRC_DIR)/*~ $(INC_DIR)/*~ *~
