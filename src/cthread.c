@@ -263,21 +263,13 @@ TCB_t* find_thread_with_id(int tid, PFILA2 queue) {
 }
 
 int csetprio(int tid, int prio) {
-    // De acordo com a especificação: (Na versão 2019/01, deixar sempre esse campo como NULL)
-    // Neste caso, não havendo tid, não é possível buscar a thread que deseja-se
-    // alterar a prioridade, portanto, a execução desta função sempre retornará sucesso
-    return CSETPRIO_SUCCESS;
-    
-    int currentPrio = THREAD_PRIORITY_HIGH;
-    for (; currentPrio < THREAD_PRIORITY_LOW; currentPrio++) {
-        TCB_t* thread = find_thread_with_id(tid, &ready[currentPrio]);
-        if (thread != NULL) {
-            thread->prio = prio;
-            return CSETPRIO_SUCCESS;
-        }
+    if (prio < 0 || prio > 2) {
+        DEBUG_PRINT("Invalid priority %d for thread %d", prio, tid);
+        return CSETPRIO_ERROR;
+    } else {
+        running_thread->prio = prio;
+        return CSETPRIO_SUCCESS;
     }
-    
-    return CSETPRIO_ERROR;
 }
 
 #define CYIELD_SUCCESS 0
