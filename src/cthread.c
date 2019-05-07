@@ -84,8 +84,7 @@ TCB_t* find_next_thread() {
     int priority = THREAD_PRIORITY_HIGH;
     for (; priority <= THREAD_PRIORITY_LOW; priority++) {
         FILA2 queue = ready[priority];
-        int set_iterator = FirstFila2(&queue);
-        if (set_iterator == 0) {
+        if (FirstFila2(&queue) == 0) {
             TCB_t* thread = (TCB_t*)GetAtIteratorFila2(&queue);
             if (thread != NULL) {
                 printf("Found next thread!\n");
