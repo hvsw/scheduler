@@ -333,7 +333,7 @@ int cjoin(int tid) {
     //achar tcb do tid
     TCB_t* target_thread = NULL;
     int prio = THREAD_PRIORITY_HIGH;
-    while ((prio < THREAD_PRIORITY_LOW) && (target_thread == NULL)) {
+    while ((prio <= THREAD_PRIORITY_LOW) && (target_thread == NULL)) {
         printf("Looking for tid(%d) at priority queue(%d)\n", tid, prio);
         target_thread = find_thread_with_id(tid, &ready[prio]);
         prio++;
