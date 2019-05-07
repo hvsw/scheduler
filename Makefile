@@ -54,5 +54,8 @@ testCYIELD:
 testCWAIT:
 	$(CC) -o $(TST_DIR)/test_cwait $(TST_DIR)/test_cwait.c -L$(LIB_DIR) -lcthread -Wall
 
+testFILA:
+	$(CC) -o $(TST_DIR)/test_fila $(TST_DIR)/test_fila.c -Wall
+
 clean:
 	rm -rf $(MAIN_NAME) $(LIB_DIR)/*.a $(BIN_DIR)/cthread.o $(TST_DIR)/*.o $(TST_DIR)/test_cjoin $(TST_DIR)/test_ccreate $(TST_DIR)/test_cyield $(SRC_DIR)/*~ $(INC_DIR)/*~ *~
