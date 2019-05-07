@@ -36,14 +36,14 @@ int currentThreadId = 1;
 
 // MARK: Control variables
 int initialized = 0;
-ucontext_t scheduler;
+ucontext_t scheduler_context;
 TCB_t main_thread;
 
 // MARK: Private helpers
 void destroy_join(join_t* join) {
     //printf("vai destruir join entre %d e %d\n",join->blocked_thread->tid, join->target_thread->tid);
     if(FirstFila2(&blocked) != 0) {
-        //printf("Fila de Aptos vazia ou ERRO\n");
+        printf("Fila de Aptos vazia ou ERRO\n");
         return;
     }
     
@@ -59,12 +59,11 @@ void destroy_join(join_t* join) {
             return;
         }
     } while (NextFila2(&blocked) == 0);
-    return;
 }
 
 void release_threads_from_tid(int tid) {
     if(FirstFila2(&joins) != 0) {
-        //printf("SCHD: Fila de Joins vazia ou ERRO\n");
+        printf("SCHD: Fila de Joins vazia ou ERRO\n");
         return;
     }
     
@@ -78,13 +77,12 @@ void release_threads_from_tid(int tid) {
             return;
         }
     } while (NextFila2(&joins) == 0);
-    return;
 }
 
 TCB_t* find_next_thread() {
     TCB_t* thread;
     int priority = THREAD_PRIORITY_HIGH;
-    for (; priority < THREAD_PRIORITY_LOW; priority++) {
+    for (; priority <= THREAD_PRIORITY_LOW; priority++) {
         FILA2 queue = ready[priority];
         int set_iterator = FirstFila2(&queue);
         if (set_iterator == 0) {
@@ -122,28 +120,27 @@ int remove_thread(int tid, FILA2 queue) {
         if (thread->tid == tid) {
             printf("REMOVTHREAD: target = %d, found = %d\n", tid, thread->tid );
             int success = DeleteAtIteratorFila2(&queue);
-            printf("Delete: %d\n", success);
+            printf("Thread(%d) delete: %d\n", tid, success);
             return REMOVE_THREAD_SUCCESS;
         }
     } while (NextFila2(&queue) == 0);
     
-    return REMOVE_THREAD_SUCCESS;
+    return REMOVE_THREAD_TID_NOT_FOUND;
 }
 
 void schedule() {
-    //printf("***************** %s *****************\n", __func__);
-//    print_all_queues();
-    
-    //se running thread nula, quer dizer que foi yield. logo, se não nula devemos assumir que a thread encerrou
+    printf("***************** schedule() *****************\n");
+
+    // Se running thread nula, quer dizer que foi yield.
+    // Logo, se não nula devemos assumir que a thread encerrou
     if (running_thread != NULL) {
-        printf("Running Thread Existe; Assume que a thread encerrou\n");
+        printf("Running thread not NULL; Assume thread finished; releasing threads from tid(%d)\n", running_thread->tid);
         release_threads_from_tid(running_thread->tid);
         running_thread = NULL;
     }
     
     TCB_t* next_thread = find_next_thread();
     printf("next_thread: tid(%d)\n", next_thread->tid);
-    print_all_queues();
     
     running_thread = next_thread;
     if (remove_thread(next_thread->tid, ready[next_thread->prio]) != 0) {
@@ -151,7 +148,7 @@ void schedule() {
     }
     
     running_thread->state = THREAD_STATE_RUNNING;
-    // print_all_queues();
+//    print_queue(ready[THREAD_PRIORITY_HIGH]);
     
     printf("Running thread: %d\n", running_thread->tid);
     
@@ -165,19 +162,19 @@ int generate_thread_id() {
 // MARK: Init
 char ss_sp_scheduler[SIGSTKSZ];
 void init_scheduler() {
-    getcontext(&scheduler);
-    scheduler.uc_link = &(main_thread.context);
-    scheduler.uc_stack.ss_sp = ss_sp_scheduler;
-    scheduler.uc_stack.ss_size = SIGSTKSZ;
-    makecontext(&scheduler, (void (*)(void))schedule, 0);
+    getcontext(&scheduler_context);
+    scheduler_context.uc_link = &(main_thread.context);
+    scheduler_context.uc_stack.ss_sp = ss_sp_scheduler;
+    scheduler_context.uc_stack.ss_size = SIGSTKSZ;
+    makecontext(&scheduler_context, (void (*)(void))schedule, 0);
 }
 
 void create_main_tcb() {
+    running_thread = &main_thread;
+    
     main_thread.tid = MAIN_THREAD_ID;
     main_thread.state = THREAD_STATE_RUNNING;
     getcontext(&main_thread.context);
-    
-    running_thread = &main_thread;
 }
 
 void init_queues() {
@@ -208,23 +205,23 @@ void init_queues() {
     }
 }
 
-void init() {
-    init_scheduler();
-    create_main_tcb();
-    init_queues();
-    initialized = 1;
+void initIfNeeded() {
+    if (initialized == 0) {
+        init_queues();
+        create_main_tcb();
+        init_scheduler();
+        initialized = 1;
+    }
 }
 
 // MARK: Public methods
 int ccreate (void* (*start)(void*), void *arg, int prio) {
-    if (initialized == 0) {
-        init();
-    }
+    initIfNeeded();
     
     ucontext_t context;
     if (getcontext(&context) == 0) {
         char tcb_stack[SIGSTKSZ];
-        context.uc_link = &scheduler;
+        context.uc_link = &scheduler_context;
         context.uc_stack.ss_sp = tcb_stack;
         context.uc_stack.ss_size = SIGSTKSZ;
         makecontext(&context, (void (*)(void)) start, 1, arg);
@@ -238,11 +235,11 @@ int ccreate (void* (*start)(void*), void *arg, int prio) {
             printf("Adicionou tid(%d) na fila\n", tcb->tid);
             return tcb->tid;
         } else {
-            printf("Erro ao adicionar na fila");
+            printf("Erro ao adicionar(%d) na fila\n");
             return CCREATE_ERROR;
         }
     } else {
-        printf("Erro ao obter context");
+        printf("Erro ao obter context\n");
         return CCREATE_ERROR;
     }
 }
@@ -251,30 +248,56 @@ int ccreate (void* (*start)(void*), void *arg, int prio) {
  @brief Retorna um TCB na fila "queue" com o thread id "tid"
  */
 TCB_t* find_thread_with_id(int tid, PFILA2 queue) {
-    int errorGettingFirst = FirstFila2(queue);
-    if (errorGettingFirst != 0) {
-        printf("Unable to move iterator to first! \nFirstFila2 return: %d\n", errorGettingFirst);
+    int moveIteratorToFirst = FirstFila2(queue);
+    if (moveIteratorToFirst != 0) {
+        printf("Unable to move iterator to first! FirstFila2 returned: %d\n", moveIteratorToFirst);
         return NULL;
     }
     
+    int next = NXTFILA_ITERINVAL;
     TCB_t* thread;
     do {
-        thread = GetAtIteratorFila2(queue);
+        /*
+         Função:    Retorna o conteúdo do nodo endereçado pelo iterador da lista "pFila"
+         Ret:    Ponteiro válido, se conseguiu
+         NULL, caso contrário:
+         -> first==NULL (lista vazia)
+         -> it==NULL (iterador invalido)
+         */
+        thread = (TCB_t*) GetAtIteratorFila2(queue);
         if (thread == NULL) {
-            printf("End or empty for queue\n");
+            printf("NULL at iterator\n");
             return NULL;
         }
         
+        printf("Looking for (%d), checking (%d)\n", tid, thread->tid);
+        
         if (thread->tid == tid) {
-            printf("Thread found! yey\n");
+            printf("Thread(%d) found\n", tid);
             return thread;
-        } else {
-            printf("Searching for %d, checking %d\n", tid, thread->tid);
         }
         
-    } while (NextFila2(queue) == 0);
+        /*
+         Função:    Seta o iterador da fila para o próximo elemento
+         Ret:    ==0, se conseguiu
+         !=0, caso contrário (erro, fila vazia ou chegou ao final da fila)
+         Fila vazia        => -NXTFILA_VAZIA
+         Iterador inválido    => -NXTFILA_ITERINVAL
+         Atingido final da fila    => -NXTFILA_ENDQUEUE
+         */
+
+        next = NextFila2(queue);
+        switch (next) {
+            case -NXTFILA_VAZIA:
+                printf("Empty queue!\n");
+            case -NXTFILA_ITERINVAL:
+                printf("Invalid iterator!\n");
+            case -NXTFILA_ENDQUEUE:
+                printf("Queue end reached!\n");
+        }
+    } while (next == 0);
     
-    printf("Thread %d not found(really!)\n", tid);
+    printf("Thread %d not found (REALLY!)\n", tid);
     return NULL;
 }
 
@@ -291,7 +314,7 @@ int csetprio(int tid, int prio) {
 #define CYIELD_SUCCESS 0
 #define CYIELD_ERROR -1
 int cyield(void) {
-    //printf("***************** cyield(%d) *****************\n", running_thread->tid);
+    printf("***************** cyield(%d) *****************\n", running_thread->tid);
     
     TCB_t* thread;
     thread = running_thread;
@@ -309,7 +332,7 @@ int cyield(void) {
     
     running_thread = NULL;
     
-    swapcontext(&thread->context, &scheduler);
+    swapcontext(&thread->context, &scheduler_context);
     
     return CYIELD_SUCCESS;
 }
@@ -337,26 +360,12 @@ int is_thread_targeted(int tid) {
 #define CJOIN_THREAD_ALREADY_JOINED -2
 #define CJOIN_FAIL -3
 int cjoin(int tid) {
-    //printf("***************** cjoin(%d) *****************\n", tid);
-    //printf("Chamado por: %d\n para esperar: %d\n", running_thread->tid, tid);
-//    print_all_queues();
+    printf("***************** cjoin(%d) *****************\n", tid);
+    printf("Called by thread(%d)\n", running_thread->tid);
+    // print_all_queues();
     
     if(tid == MAIN_THREAD_ID) {
         printf("Can't join main thread! \n");
-        return CJOIN_FAIL;
-    }
-    
-    //achar tcb do tid
-    TCB_t* target_thread = NULL;
-    int prio = THREAD_PRIORITY_HIGH;
-    while ((prio <= THREAD_PRIORITY_LOW) && (target_thread == NULL)) {
-        printf("Looking for tid(%d) at priority queue(%d)\n", tid, prio);
-        target_thread = find_thread_with_id(tid, &ready[prio]);
-        prio++;
-    }
-    printf("Adeus loop\n");
-    if (target_thread == NULL) {
-        printf("Target thread %d not found\n", tid);
         return CJOIN_FAIL;
     }
     
@@ -366,20 +375,62 @@ int cjoin(int tid) {
         return CJOIN_THREAD_ALREADY_JOINED;
     }
     
-    //cria o join
+    //achar tcb do tid
+    TCB_t* target_thread = NULL;
+    int prio = THREAD_PRIORITY_HIGH;
+    while ((prio <= THREAD_PRIORITY_LOW) && (target_thread == NULL)) {
+        printf("Looking for tid(%d) at priority queue(%d)\n", tid, prio);
+        target_thread = find_thread_with_id(tid, &ready[prio]);
+        if (target_thread != NULL) {
+            printf("Found thread(%d)\n", target_thread->tid);
+            break; // just in case
+        }
+        prio++;
+    }
+    
+    if (target_thread == NULL) {
+        printf("Target thread(%d) not found\n", tid);
+        return CJOIN_FAIL;
+    }
+    
+    // Create join
     join_t* join = (join_t*) malloc(sizeof(join_t));
     join->blocked_thread = running_thread;
     join->target_thread = target_thread;
-    AppendFila2(&joins, (void*) join);
     
+    AppendFila2(&joins, (void*) join);
+    // Se utilizar uma variavel pra controlar o retorno, o teste cjoin da erro
+//    int appendError = AppendFila2(&joins, (void*) join);
+    //    if (appendError != 0) {
+    //        printf("Error(%d): Unable to append join(%d->%d) to queue\n", appendError, running_thread->tid, target_thread->tid);
+    //    }
+
     TCB_t* calling_thread = running_thread;
     calling_thread->state = THREAD_STATE_BLOCKED;
     
     AppendFila2(&blocked, (void*)calling_thread);
     running_thread = NULL;
-    swapcontext(&calling_thread->context, &scheduler);
+    swapcontext(&calling_thread->context, &scheduler_context);
     
     return CJOIN_SUCCESS;
+    
+    // NEW CODE
+//
+//    appendError = AppendFila2(&blocked, (void*)running_thread);
+//    if (appendError == 0) {
+//        running_thread->state = THREAD_STATE_BLOCKED;
+//    } else {
+//        printf("Error(%d): Unable to append join(%d->%d) to queue\n", appendError, join->blocked_thread->tid, join->target_thread->tid);
+//    }
+//
+//    // Vamos liberar a running_thread entao copiamos o ponteiro antes
+//    TCB_t* caller_thread = running_thread;
+//
+//    // Não temos mais ninguem rodando, hora de chamar o schedule
+//    running_thread = NULL;
+//    swapcontext(&caller_thread->context, &scheduler);
+//
+//    return CJOIN_SUCCESS;
 }
 
 #define CSEM_INIT_SUCCESS 0
@@ -400,9 +451,7 @@ int csem_init (csem_t *sem, int count) {
 #define CWAIT_ERROR_CREATE_QUEUE -1
 int cwait (csem_t *sem) {
     printf("***************** CWAIT *****************\n");
-    if (!initialized) {
-        init();
-    }
+    initIfNeeded();
     
     if (sem->fila == NULL) {
         sem->fila = (PFILA2) malloc(sizeof(FILA2));
@@ -424,7 +473,7 @@ int cwait (csem_t *sem) {
         
         running_thread = NULL;
         
-        swapcontext(&thread->context, &scheduler);
+        swapcontext(&thread->context, &scheduler_context);
     }
     
     return CWAIT_SUCCESS;
@@ -460,9 +509,7 @@ int move_thread(int tid, FILA2 queue, FILA2 dest) {
 #define CSIGNAL_ERROR_REMOVE_THREAD_FROM_BLOCKED -2
 int csignal (csem_t *sem) {
     printf("************** CSIGNAL **************\n");
-    if (!initialized) {
-        init();
-    }
+    initIfNeeded();
     
     if (sem->fila == NULL) {
         printf("Signal antes do wait ou semaforo nao inicializado");
