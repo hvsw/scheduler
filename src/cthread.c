@@ -236,8 +236,9 @@ int ccreate (void* (*start)(void*), void *arg, int prio) {
  @brief Retorna um TCB na fila "queue" com o thread id "tid"
  */
 TCB_t* find_thread_with_id(int tid, PFILA2 queue) {
-    if (FirstFila2(queue) != 0) {
-        printf("Buscando TCB: Fila Vazia ou erro\n");
+    int errorGettingFirst = FirstFila2(queue);
+    if (errorGettingFirst != 0) {
+        printf("Unable to move iterator to first! \nFirstFila2 return: %d\n", errorGettingFirst);
         return NULL;
     }
     
