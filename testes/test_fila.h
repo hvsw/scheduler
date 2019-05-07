@@ -10,5 +10,6 @@
 #define test_fila_h
 
 #include <stdio.h>
+#include "../include/support.h"
 
 #endif /* test_fila_h */
