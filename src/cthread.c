@@ -181,16 +181,31 @@ void create_main_tcb() {
 }
 
 void init_queues() {
-    int priority = 0;
+    // Ready queues
+    int priority = THREAD_PRIORITY_HIGH; // 0
     while (priority < NUMBER_PRIORITY_QUEUES) {
-        printf("Initializing queue %d\n", priority);
-        if (CreateFila2(&ready[priority]) != 0) {
-            printf("Error creating queue %d\n", priority);
+        printf("Initializing queue (%d)\n", priority);
+        if (CreateFila2(&ready[priority]) == 0) {
+            printf("Queue(%d) created!\n", priority);
+        } else {
+            printf("Error creating ready queue with priority %d\n", priority);
         }
         priority++;
     }
-    CreateFila2(&blocked);
-    CreateFila2(&joins);
+    
+    // Blocked
+    if (CreateFila2(&blocked) == 0) {
+        printf("Blocked queue created!\n", priority);
+    } else {
+        printf("Error creating blocked queue\n");
+    }
+    
+    // Joins
+    if (CreateFila2(&joins) == 0) {
+        printf("Joins queue created!\n", priority);
+    } else {
+        printf("Error creating joins queue\n");
+    }
 }
 
 void init() {
