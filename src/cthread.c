@@ -361,25 +361,24 @@ int is_thread_targeted(int tid) {
 int cjoin(int tid) {
     printf("***************** cjoin(%d) *****************\n", tid);
     printf("Called by thread(%d)\n", running_thread->tid);
-    // print_all_queues();
     
     if(tid == MAIN_THREAD_ID) {
         printf("Can't join main thread! \n");
         return CJOIN_FAIL;
     }
     
-    //checar se thread alvo já tem alguem no aguardo
+    // Check if tid is already targeted
     if (is_thread_targeted(tid) == TARGETED) {
-        printf("Já há uma thread esperando por está\n");
+        printf("Thread(%d) already targeted\n", tid);
         return CJOIN_THREAD_ALREADY_JOINED;
     }
     
-    //achar tcb do tid
+    // Find TCB for tid
     TCB_t* target_thread = NULL;
     int prio = THREAD_PRIORITY_HIGH;
     while ((prio <= THREAD_PRIORITY_LOW) && (target_thread == NULL)) {
         printf("Looking for tid(%d) at priority queue(%d)\n", tid, prio);
-        target_thread = find_thread_with_id(tid, &ready[prio]);
+        target_thread = find_thread_with_id(tid, ready[prio]);
         if (target_thread != NULL) {
             printf("Found thread(%d)\n", target_thread->tid);
             break; // just in case
@@ -387,6 +386,7 @@ int cjoin(int tid) {
         prio++;
     }
     
+    // Check if thread not found
     if (target_thread == NULL) {
         printf("Target thread(%d) not found\n", tid);
         return CJOIN_FAIL;
@@ -397,19 +397,27 @@ int cjoin(int tid) {
     join->blocked_thread = running_thread;
     join->target_thread = target_thread;
     
-    AppendFila2(&joins, (void*) join);
-    // Se utilizar uma variavel pra controlar o retorno, o teste cjoin da erro
-//    int appendError = AppendFila2(&joins, (void*) join);
-    //    if (appendError != 0) {
-    //        printf("Error(%d): Unable to append join(%d->%d) to queue\n", appendError, running_thread->tid, target_thread->tid);
-    //    }
+    if (AppendFila2(&joins, (void*) join) != 0) {
+        printf("Unable to append join(%d->%d) to queue\n", running_thread->tid, target_thread->tid);
+    }
 
-    TCB_t* calling_thread = running_thread;
-    calling_thread->state = THREAD_STATE_BLOCKED;
+    // Block running thread
+    TCB_t* caller_thread = running_thread;
+    if(AppendFila2(&blocked, (void*)caller_thread) != 0) {
+        printf("Error moving running_thread(%d) to blocked queue\n", caller_thread->tid);
+    }
+    caller_thread->state = THREAD_STATE_BLOCKED;
     
-    AppendFila2(&blocked, (void*)calling_thread);
+    // Clear running thread
     running_thread = NULL;
-    swapcontext(&calling_thread->context, &scheduler_context);
+    
+    // Run schedule, then return after swapcontext
+    swapcontext(&caller_thread->context, &scheduler_context);
+    
+    // Volta pra thread anterior
+    running_thread = caller_thread;
+    // We don't need this join anymore
+    destroy_join(join);
     
     return CJOIN_SUCCESS;
     
