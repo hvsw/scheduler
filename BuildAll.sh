@@ -1,0 +1,1 @@
+sudo make clean && sudo make all  && cd testes1 && sudo make clean && sudo make all && ls -la
