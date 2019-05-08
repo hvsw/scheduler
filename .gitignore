@@ -68,3 +68,5 @@ DerivedData/
 *.[oa]
 
 # End of https://www.gitignore.io/api/macos,xcode
+
+!exemplo/*.c
