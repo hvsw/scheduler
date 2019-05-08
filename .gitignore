@@ -69,4 +69,11 @@ DerivedData/
 
 # End of https://www.gitignore.io/api/macos,xcode
 
-!exemplo/*.c
+exemplos/exemplo
+exemplos/mandel
+exemplos/series
+exemplos/teste_vetor
+mainProg
+testes/test_cwait
+
+!testes/*.c
