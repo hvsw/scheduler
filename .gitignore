@@ -75,5 +75,7 @@ exemplos/series
 exemplos/teste_vetor
 mainProg
 testes/test_cwait
-
-!testes/*.c
+bin/cthread.o
+testes/test_ccreate
+testes/test_cjoin
+testes/test_cyield
