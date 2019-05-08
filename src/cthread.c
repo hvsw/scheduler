@@ -378,7 +378,7 @@ int cjoin(int tid) {
     int prio = THREAD_PRIORITY_HIGH;
     while ((prio <= THREAD_PRIORITY_LOW) && (target_thread == NULL)) {
         printf("Looking for tid(%d) at priority queue(%d)\n", tid, prio);
-        target_thread = find_thread_with_id(tid, ready[prio]);
+        target_thread = find_thread_with_id(tid, &ready[prio]);
         if (target_thread != NULL) {
             printf("Found thread(%d)\n", target_thread->tid);
             break; // just in case
@@ -532,6 +532,7 @@ int csignal (csem_t *sem) {
     TCB_t* thread;
     thread = (TCB_t*) GetAtIteratorFila2(sem->fila);
     thread->state = THREAD_STATE_READY;
+
 //    print_all_queues();
     printf("SIGNAL VAI LIBERAR THREAD: %d\n", thread->tid);
     DeleteAtIteratorFila2(sem->fila);
