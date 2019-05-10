@@ -15,11 +15,13 @@ void	setStopTimer(int op, int tm);
 #define MEDIA 1
 #define ALTA  0
 
-int	tid[3];
+#define THREAD_COUNT 3
+
+int	tid[THREAD_COUNT];
 
 void *th(void *param) {
 	int n=(int)param;
-	int cont=100;
+	int cont=THREAD_COUNT;
 	while(cont) {
 		printf ("%d",n);
 		--cont;
@@ -29,7 +31,7 @@ void *th(void *param) {
 }
 
 int main(int argc, char *argv[]) {
-	int	delay=10000;
+	int	delay=THREAD_COUNT;
 	char	name[256];
 	
 	printf ("FUNCOES TESTADAS:\n");

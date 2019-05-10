@@ -26,6 +26,7 @@
 void schedule(void);
 
 int debug = 1;
+TCB_t *tYield = NULL;
 
 // MARK: - Local vars
 TCB_t* runningThread;
@@ -34,6 +35,24 @@ TCB_t* runningThread;
  @brief Partiremos do 1 pois a 0 será a main
  */
 int currentThreadId = 1;
+
+int isThreadAtQueue(TCB_t *thread, PFILA2 queue) {
+    FirstFila2(queue);
+    TCB_t* t = NULL;
+    do {
+        t = GetAtIteratorFila2(queue);
+        if (t == NULL) {
+            return 0;
+        } else {
+            if (t->tid == thread->tid) {
+                return 1;
+            }
+        }
+    } while (NextFila2(queue) == 0);
+    
+    return 0;
+    
+}
 
 // MARK: Utils
 PFILA2 getQueueWithPriority(int prio) {
@@ -161,12 +180,12 @@ TCB_t* getFirstFromQueue(PFILA2 queue) {
                 // Invalid pointer, checking the reason...
                 if (debug) {
                     if (queue->first == NULL) {
-                        printf("Empty queue\n");
+//                        printf("Empty queue\n");
                         return NULL;
                     }
                     
                     if (queue->it == NULL) {
-                        printf("Invalid iterator\n");
+//                        printf("Invalid iterator\n");
                         return NULL;
                     }
                 }
@@ -195,8 +214,19 @@ TCB_t* getFirstFromQueue(PFILA2 queue) {
             }
         }
     } else {
+        TCB_t *t = GetAtIteratorFila2(queue);
         if (debug) {
-            printf("Error(%d) while trying to set iterator to first position\n", setIteratorToFirstResult);
+            if (t == NULL) {
+                if (queue->first == NULL) {
+                    printf("Empty queue\n");
+                } else {
+                    if (queue->it == NULL) {
+                        printf("Invalid iterator\n");
+                    }
+                }
+            }
+            
+//            printf("Error(%d) while trying to set iterator to first position\n", setIteratorToFirstResult);
 //            printf("  first: %p\n", queue->first);
 //            printf("  it: %p\n", queue->it);
 //            printf("  last: %p\n", queue->last);
@@ -214,9 +244,9 @@ TCB_t* findNextThread() {
     TCB_t* nextThread = NULL;
     int priority = THREAD_PRIORITY_HIGH;
     while (priority <= THREAD_PRIORITY_LOW) {
-        if (debug) {
-            printf("Searching queue(%d)\n", priority);
-        }
+//        if (debug) {
+//            printf("Searching queue(%d)\n", priority);
+//        }
         PFILA2 queue = getQueueWithPriority(priority);
         if (queue == NULL) {
             if (debug) {
@@ -241,12 +271,7 @@ TCB_t* findNextThread() {
 }
 
 void destroyJoin(join_t* join) {
-    if(FirstFila2(&blocked) != 0) {
-        if (debug) {
-            printf("Fila de Aptos vazia ou ERRO\n");
-        }
-        return;
-    }
+    FirstFila2(&blocked);
     
     TCB_t* thread = NULL;
     do {
@@ -302,91 +327,147 @@ void schedule() {
     // Logo, se não nula devemos assumir que a thread encerrou
     if (runningThread != NULL && runningThread != &mainThread) {
         if (debug) {
-            printf("Running thread(%d) NOT NULL and NOT MAIN; Assume thread finished; releasing threads from tid(%d)\n", runningThread->tid, runningThread->tid);
+            printf("Running thread(%d) NOT NULL, NOT MAIN and NOT YIELD; Assume thread finished; releasing threads from tid(%d)\n", runningThread->tid, runningThread->tid);
         }
-    
+        
         runningThread->state = THREAD_STATE_FINISH;
         releaseThreadsFromTid(runningThread->tid);
-//        free(runningThread->context.uc_stack.ss_sp);
-//        free(runningThread);
     } else {
-        // Se thread nao encerrou ainda vai pra fila de aptos novamente esperar a vez dela
-        PFILA2 runningThreadQueue = getQueueWithPriority(runningThread->prio);
-        
-        //  move thread atual pra apto
-        int moveRunningThreadToReady = AppendFila2(runningThreadQueue, runningThread);
-        if (moveRunningThreadToReady == 0) {
-            runningThread->state = THREAD_STATE_BLOCKED;
-            if (debug) {
-                printf("Running thread(%d) added to ready(%d)...\n", runningThread->tid, runningThread->prio);
-                print_all_queues2();
-            }
+        // YIELD
+        // Só vai utilizar quando for chamado do yield
+        if (tYield != NULL && runningThread != &mainThread) {
+            // Thread que deu yield é a que está em execução
+            runningThread = tYield;
         } else {
-            if (debug) {
-                printf("Error moving running thread(%d) to queue(%d)\n", moveRunningThreadToReady, runningThread->prio);
-            }
+//            printf("Entrou no caso do yield mas tYield not NULL\n");
+//            exit(999);
         }
     }
     
     TCB_t *nextThread = findNextThread();
+    
+    // Remove next thread da fila de aptos
     if (nextThread == NULL) {
         if (debug) {
             printf("No more threads to execute\n");
         }
     } else {
-        // remove next thread da fila de aptos
+        
         if (debug) {
-            printf("Got queue(%d)\n", nextThread->prio);
             printf("Removing next thread(%d) from queue(%d)\n", nextThread->tid, nextThread->prio);
         }
         PFILA2 nextThreadQueue = getQueueWithPriority(nextThread->prio);
         int moveIteratorToFirst = FirstFila2(nextThreadQueue);
         if (moveIteratorToFirst != 0) {
             if (debug) {
-                printf("Unable to move iterator to first! FirstFila2 returned: %d\n", moveIteratorToFirst);
+                printf("Error moving queue(%d) iterator to first! Reason: ", moveIteratorToFirst);
+                if (nextThreadQueue->first == NULL) {
+                    printf("empty queue");
+                }
+                
+                if (nextThreadQueue->it == NULL) {
+                    printf("invalid iterator");
+                }
             }
+            
+            return;
         } else {
             if (debug) {
                 printf("Moved queue(%d) iterator to first to delete thread (%d)\n", nextThread->prio, nextThread->tid);
             }
-        }
-        
-        int deleteResult = DeleteAtIteratorFila2(nextThreadQueue);
-        if (debug) {
-            if (deleteResult == 0) {
-                printf("Deleted at iterator!\n");
-//                print_all_queues2();
-            } else {
-                printf("DeleteAtIteratorFila2 queue(%d): %d", nextThread->prio, deleteResult);
-                switch (deleteResult) {
-                    case -DELITER_VAZIA:
-                        printf("Empty queue(%d)", nextThread->prio);
-                        break;
-                        
-                    case -DELITER_INVAL:
-                        printf("Invalid queue(%d) iterator", nextThread->prio);
-                        break;
+            
+            int deleteResult = DeleteAtIteratorFila2(nextThreadQueue);
+            if (debug) {
+                if (deleteResult == 0) {
+                    printf("Deleted at iterator!\n");
+                    //                print_all_queues2();
+                } else {
+                    printf("DeleteAtIteratorFila2 queue(%d): %d", nextThread->prio, deleteResult);
+                    switch (deleteResult) {
+                        case -DELITER_VAZIA:
+                            printf("Empty queue(%d)", nextThread->prio);
+                            break;
+                            
+                        case -DELITER_INVAL:
+                            printf("Invalid queue(%d) iterator", nextThread->prio);
+                            break;
+                    }
+                    printf("\n");
                 }
-                printf("\n");
             }
         }
-        
-        
-        // coloca em execucao a proxima
-        if (debug) {
-            printf("Setting thread(%d) as running thread!\n", nextThread->tid);
-        }
-        runningThread = nextThread;
-        runningThread->state = THREAD_STATE_RUNNING;
-        
-        if (debug) {
-            printf("Setting context now!\n");
-        }
-        
-        // Ao setar o contexto da thread do testes1/caso1 ocorre seg fault.
-        // Temos que verificar onde parou o contexto da thread que deu problema e continuar debugando
-        setcontext(&runningThread->context);
     }
+    
+    // Adiciona runningThread na fila de aptos
+    PFILA2 runningThreadQueue = getQueueWithPriority(runningThread->prio);
+    int first = FirstFila2(runningThreadQueue);
+    if (first != 0) {
+        if (debug) {
+//            printf("WARNING: Maybe this queue(%d) is empty or we've got an error(%d)!\n", runningThread->prio, first);
+        }
+    }
+    
+    TCB_t *t = GetAtIteratorFila2(runningThreadQueue);
+    if (t == NULL) {
+        if (runningThreadQueue->first == NULL) {
+            if (debug) {
+                printf("Empty queue(%d), appending thread(%d)...\n", runningThread->prio, runningThread->tid);
+            }
+            
+            if (!isThreadAtQueue(runningThread, runningThreadQueue)) {
+                int appendNextThread = AppendFila2(runningThreadQueue, runningThread);
+                if (appendNextThread == 0) {
+                    if (debug) {
+                        printf("Thread(%d) added to queue(%d)\n", runningThread->tid, runningThread->prio);
+                        print_all_queues2();
+                    }
+                }
+            }
+            
+        } else {
+            if (runningThreadQueue->it == NULL) {
+                if (debug) {
+                    printf("Invalid iterator\n");
+                }
+            } else {
+                int insert = InsertBeforeIteratorFila2(runningThreadQueue, runningThread);
+                if (insert == 0) {
+                    if (debug) {
+                        printf("Inserted thread(%d) into queue(%d)\n", runningThread->tid, runningThread->prio);
+                    }
+                    print_all_queues2();
+                } else {
+                    if (debug) {
+                        printf("Error(%d) inserting before iterator at queue(%d)\n", insert, runningThread->prio);
+                    }
+                }
+            }
+        }
+    } else {
+        if (!isThreadAtQueue(runningThread, runningThreadQueue)) {
+            int appendNextThread = AppendFila2(runningThreadQueue, runningThread);
+            if (appendNextThread == 0) {
+                if (debug) {
+                    printf("Thread(%d) added to queue(%d)\n", runningThread->tid, runningThread->prio);
+                    print_all_queues2();
+                }
+            }
+        }
+    }
+    runningThread->state = THREAD_STATE_READY;
+    
+    // Coloca em execucao a proxima
+    if (debug) {
+        printf("Setting thread(%d) as running thread!\n", nextThread->tid);
+    }
+    runningThread = nextThread;
+    runningThread->state = THREAD_STATE_RUNNING;
+    
+    if (debug) {
+        printf("Setting context now!\n");
+    }
+    
+    setcontext(&runningThread->context);
 }
 
 int generateThreadId() {
@@ -397,6 +478,7 @@ int generateThreadId() {
 int ccreate (void* (*start)(void*), void *arg, int prio) {
     initIfNeeded();
     
+    printf("***** ccreate(prio=%d) *****\n", prio);
     ucontext_t context;
     if (getcontext(&context) == 0) {
         char tcb_stack[SIGSTKSZ];
@@ -410,37 +492,91 @@ int ccreate (void* (*start)(void*), void *arg, int prio) {
         tcb->context = context;
         tcb->prio = prio;
         tcb->state = THREAD_STATE_CREATION;
+        
         PFILA2 newThreadQueue = getQueueWithPriority(tcb->prio);
-        int appendNextThread = AppendFila2(newThreadQueue, (void*) tcb);
-        if (appendNextThread == 0) {
+        
+        int first = FirstFila2(newThreadQueue);
+        
+        if (first != 0) {
             if (debug) {
-                printf("Thread(%d) added to queue(%d)\n", tcb->tid, tcb->prio);
-                print_all_queues2();
+                printf("WARNING: Maybe this queue(%d) is empty or we've got an error(%d)!\n", tcb->prio, first);
             }
-            
-            if (runningThread == NULL || runningThread == &mainThread) {
-                
+        }
+        
+        printf("Trying to add thread(%d) to queue(%d)\n", tcb->tid, tcb->prio);
+        TCB_t *t = GetAtIteratorFila2(newThreadQueue);
+        if (t == NULL) {
+            if (newThreadQueue->first == NULL) {
                 if (debug) {
-                    if (runningThread == NULL) {
-                        printf("ccreate with NULL thread");
-                    }
-                    
-                    if (runningThread == &mainThread) {
-                        printf("ccreate from main thread");
-                    }
-                    printf(", calling scheduler to add new thread(%d) to CPU\n", tcb->tid);
+                    printf("Empty queue(%d), appeding(%d)...\n", tcb->prio, tcb->tid);
                 }
                 
-                swapcontext(&(runningThread->context), &schedulerContext);
+                if (!isThreadAtQueue(tcb, newThreadQueue)) {
+                    int appendNextThread = AppendFila2(newThreadQueue, tcb);
+                    if (appendNextThread == 0) {
+                        if (debug) {
+                            printf("Thread(%d) appended to queue(%d)\n", tcb->tid, tcb->prio);
+                            print_all_queues2();
+                        }
+                    }
+                }
+                
+            } else {
+                if (newThreadQueue->it == NULL) {
+                    if (debug) {
+                        printf("Invalid iterator\n");
+                    }
+                } else {
+                    if (debug) {
+                        printf("Not empty queue(%d), inserting(%d)...\n", tcb->prio, tcb->tid);
+                    }
+                    
+                    
+                    int insert = InsertBeforeIteratorFila2(newThreadQueue, tcb);
+                    if (insert == 0) {
+                        if (debug) {
+                            printf("Inserted thread(%d) into queue(%d)\n", tcb->tid, tcb->prio);
+                        }
+                        print_all_queues2();
+                    } else {
+                        if (debug) {
+                            printf("Error(%d) inserting before iterator at queue(%d)\n", insert, tcb->prio);
+                        }
+                    }
+                }
             }
-            
-            return tcb->tid;
         } else {
-            if (debug) {
-                printf("Error trying to append thread(%d) to queue(%d)\n", tcb->tid, tcb->prio);
+            if (!isThreadAtQueue(tcb, newThreadQueue)) {
+                if (newThreadQueue->first == NULL) {
+                    printf("Empty queue(%d)!\n", prio);
+                }
+                
+                if (newThreadQueue->it == NULL) {
+                    printf("Invalid queue(%d) iterator!\n", prio);
+                }
+                
+                if (first != 0) {
+                    if (debug) {
+                        printf("WARNING: Maybe this queue(%d) is empty or we've got an error(%d)!\n", tcb->prio, first);
+                    }
+                }
+                
+                int appendNextThread = InsertBeforeIteratorFila2(newThreadQueue, tcb);
+                if (appendNextThread == 0) {
+                    if (debug) {
+                        printf("Thread(%d) inserted to queue(%d)\n", tcb->tid, tcb->prio);
+                    }
+                } else {
+                    if (debug) {
+                        printf("Error inserting thread(%d) before iterator at queue(%d)\n", tcb->tid, tcb->prio);
+                    }
+                }
+                print_all_queues2();
             }
-            return CCREATE_ERROR;
         }
+        
+        swapcontext(&runningThread->context, &schedulerContext);
+        return tcb->tid;
     } else {
         if (debug) {
             printf("Erro trying to getcontext\n");
@@ -460,28 +596,16 @@ int cyield(void) {
         printf("***** cyield(%d) *****\n", runningThread->tid);
     }
     
-    if (runningThread == &mainThread) {
-        if (debug) {
-            printf("Why you're trying to yield from main?");
-        }
-        return CYIELD_SUCCESS;
-    }
-    
-    PFILA2 runningThreadQueue = getQueueWithPriority(runningThread->prio);
-    int appendRunningThread = AppendFila2(runningThreadQueue, (void*) runningThread);
-    if (appendRunningThread == 0) {
-        if (debug) {
-            printf("Thread(%d) blocked and leaving CPU...\n", runningThread->tid);
-        }
-        
-        swapcontext(&runningThread->context, &schedulerContext);
-        return CYIELD_SUCCESS;
-    } else {
-        if (debug) {
-            printf("Erro adicionando thread(%d) a fila(%d)\n", runningThread->tid, runningThread->prio);
-        }
-        return CYIELD_ERROR;
-    }
+    tYield = runningThread;
+    runningThread = NULL;
+    swapcontext(&tYield->context, &schedulerContext);
+    return CYIELD_SUCCESS;
+//    } else {
+//        if (debug) {
+//            printf("Erro adicionando thread(%d) a fila(%d)\n", runningThread->tid, runningThread->prio);
+//        }
+//        return CYIELD_ERROR;
+//    }
 }
 
 /*!
@@ -595,13 +719,13 @@ TCB_t* getTcbWithId(int tid) {
     int prio = THREAD_PRIORITY_HIGH;
     while (prio <= THREAD_PRIORITY_LOW) {
         if (debug){
-            printf("Looking for tid(%d) at priority queue(%d)\n", tid, prio);
+//            printf("Looking for tid(%d) at priority queue(%d)\n", tid, prio);
         }
         
         tcb = findTcbWithIdAtPriorityQueue(tid, prio);
         if (tcb == NULL) {
             if (debug) {
-                printf("Thread(%d) not found at queue(%d)", tid, prio);
+//                printf("Thread(%d) not found at queue(%d)", tid, prio);
             }
         } else {
             printf("Found thread(%d)\n", tcb->tid);
