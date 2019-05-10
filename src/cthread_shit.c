@@ -492,7 +492,7 @@ int cwait (csem_t *sem) {
 #define MOVE_THREAD_SUCCESS 0
 #define MOVE_THREAD_ERROR_OR_EMPTY_QUEUE -1
 #define MOVE_THREAD_TID_NOT_FOUND -2
-int move_thread(int tid, FILA2 queue, FILA2 dest) {
+int moveThread(int tid, FILA2 queue, FILA2 dest) {
     if(FirstFila2(&queue) != 0) {
         //printf("Fila de Origem vazia ou ERRO\n");
         return MOVE_THREAD_ERROR_OR_EMPTY_QUEUE;
@@ -540,7 +540,7 @@ int csignal (csem_t *sem) {
     printf("SIGNAL VAI LIBERAR THREAD: %d\n", thread->tid);
     DeleteAtIteratorFila2(sem->fila);
     
-    if (move_thread(thread->tid, blocked, ready[thread->prio]) != 0) {
+    if (moveThread(thread->tid, blocked, ready[thread->prio]) != 0) {
         printf("Erro ao remover thread(%d) da fila de bloqueados", thread->tid);
         return CSIGNAL_ERROR_REMOVE_THREAD_FROM_BLOCKED;
     }

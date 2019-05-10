@@ -66,6 +66,7 @@ PFILA2 getQueueWithPriority(int prio) {
 }
 
 void print_all_queues2() {
+    return;
     if (!debug) {
         return;
     }
@@ -478,7 +479,9 @@ int generateThreadId() {
 int ccreate (void* (*start)(void*), void *arg, int prio) {
     initIfNeeded();
     
-    printf("***** ccreate(prio=%d) *****\n", prio);
+    if (debug) {
+        printf("***** ccreate(prio=%d) *****\n", prio);
+    }
     ucontext_t context;
     if (getcontext(&context) == 0) {
         char tcb_stack[SIGSTKSZ];
@@ -503,7 +506,9 @@ int ccreate (void* (*start)(void*), void *arg, int prio) {
             }
         }
         
-        printf("Trying to add thread(%d) to queue(%d)\n", tcb->tid, tcb->prio);
+        if (debug) {
+            printf("Trying to add thread(%d) to queue(%d)\n", tcb->tid, tcb->prio);
+        }
         TCB_t *t = GetAtIteratorFila2(newThreadQueue);
         if (t == NULL) {
             if (newThreadQueue->first == NULL) {
@@ -547,16 +552,15 @@ int ccreate (void* (*start)(void*), void *arg, int prio) {
             }
         } else {
             if (!isThreadAtQueue(tcb, newThreadQueue)) {
-                if (newThreadQueue->first == NULL) {
-                    printf("Empty queue(%d)!\n", prio);
-                }
-                
-                if (newThreadQueue->it == NULL) {
-                    printf("Invalid queue(%d) iterator!\n", prio);
-                }
-                
-                if (first != 0) {
-                    if (debug) {
+                if (debug) {
+                    if (newThreadQueue->first == NULL) {
+                        printf("Empty queue(%d)!\n", prio);
+                    }
+                    
+                    if (newThreadQueue->it == NULL) {
+                        printf("Invalid queue(%d) iterator!\n", prio);
+                    }
+                    if (first != 0) {
                         printf("WARNING: Maybe this queue(%d) is empty or we've got an error(%d)!\n", tcb->prio, first);
                     }
                 }
@@ -624,10 +628,20 @@ int csetprio(int tid, int prio) {
 
 int isThreadTargeted(int tid) {
     if(FirstFila2(&joins) != 0) {
-        if (debug) {
-        printf("CJOIN: Fila de joins vazia ou ERRO\n");
+        if (joins.first == NULL) {
+//            if (debug) {
+//                printf("Joins queue empty!\n");
+//            }
+            return 0;
+        } else {
+            if (joins.it == NULL) {
+                if (debug) {
+                    printf("Joins queue invalid iterator!\n");
+                }
+                return 1;
+            }
         }
-        return 1;
+        
     }
     
     do {
@@ -728,7 +742,9 @@ TCB_t* getTcbWithId(int tid) {
 //                printf("Thread(%d) not found at queue(%d)", tid, prio);
             }
         } else {
-            printf("Found thread(%d)\n", tcb->tid);
+            if (debug) {
+                printf("Found thread(%d)\n", tcb->tid);
+            }
             break;
         }
         
@@ -790,45 +806,145 @@ int cjoin(int tid) {
     }
     
     // Block running thread
-    TCB_t* callerThread = runningThread;
-    if(AppendFila2(&blocked, (void*)callerThread) != 0) {
+    if(AppendFila2(&blocked, (void*)runningThread) != 0) {
         if (debug) {
-            printf("Error moving running_thread(%d) to blocked queue\n", callerThread->tid);
+            printf("Error moving runningThread(%d) to blocked queue\n", runningThread->tid);
         }
     }
     
-    runningThread = NULL;
     print_all_queues2();
+    
+    TCB_t* callerThread = runningThread;
+    runningThread = NULL;
     swapcontext(&callerThread->context, &schedulerContext);
     
     return CJOIN_SUCCESS;
 }
 
-
+#define MOVE_THREAD_SUCCESS 0
+#define MOVE_THREAD_ERROR_OR_EMPTY_QUEUE -1
+#define MOVE_THREAD_TID_NOT_FOUND -2
+int moveThread(TCB_t* thread, PFILA2 src, PFILA2 dst) {
+    if(FirstFila2(src) != 0) {
+        //printf("Fila de Origem vazia ou ERRO\n");
+        return MOVE_THREAD_ERROR_OR_EMPTY_QUEUE;
+    }
+    
+    int append = AppendFila2(dst, thread);
+    int delete = DeleteAtIteratorFila2(src);
+    if (debug) {
+        printf("Moving thread(%d)\n", thread->tid);
+        printf("Append: %d\n", append);
+        printf("Delete: %d\n", delete);
+    }
+    return MOVE_THREAD_SUCCESS;
+}
 
 /*!
  @param sem ponteiro para uma variável do tipo csem_t. Aponta para uma estrutura de dados que representa a variável semáforo.
  @param count valor a ser usado na inicialização do semáforo. Representa a quantidade de recursos controlador pelo semáforo.
  @return Quando executada corretamente: retorna 0 (zero) Caso contrário, retorna um valor negativo.
  */
-int csem_init(csem_t *sem, int count) {
-    return NOT_IMPLEMENTED;
+#define CSEM_INIT_SUCCESS 0
+#define CSEM_INIT_ERROR_CREATE_QUEUE -1
+int csem_init (csem_t *sem, int count) {
+    sem->count = count;
+    sem->fila = (PFILA2) malloc(sizeof(FILA2));
+    
+    if (CreateFila2(sem->fila) != 0) {
+        printf("Erro ao alocar fila para o semaforo");
+        return CSEM_INIT_ERROR_CREATE_QUEUE;
+    }
+    
+    return CSEM_INIT_SUCCESS;
 }
 
 /*!
  @param sem ponteiro para uma variável do tipo semáforo.
  @return Quando executada corretamente retorna CWAIT_SUCCESS (0 zero), caso contrário, retorna CWAIT_ERROR (um valor negativo)
  */
-int cwait(csem_t *sem) {
-    return NOT_IMPLEMENTED;
+#define CWAIT_SUCCESS 0
+#define CWAIT_ERROR_CREATE_QUEUE -1
+int cwait (csem_t *sem) {
+    initIfNeeded();
+    
+    if (debug) {
+        printf("***************** CWAIT *****************\n");
+    }
+    
+    if (sem->fila == NULL) {
+        sem->fila = (PFILA2) malloc(sizeof(FILA2));
+        if (CreateFila2(sem->fila) != 0) {
+            //printf("\n");
+            return CWAIT_ERROR_CREATE_QUEUE;
+        }
+    }
+    
+    sem->count--;
+    // sem recursos disponivel
+    if (sem->count < 0) {
+        TCB_t* thread;
+        thread = runningThread;
+        thread->state = THREAD_STATE_BLOCKED;
+        
+        AppendFila2(&blocked, (void*) thread);
+        AppendFila2(sem->fila, (void*) thread);
+        
+        runningThread = NULL;
+        
+        swapcontext(&thread->context, &schedulerContext);
+    }
+    
+    return CWAIT_SUCCESS;
 }
 
 /*!
  @param sem ponteiro para uma variável do tipo semáforo.
  @return Quando executada corretamente retorna CSIGNAL_SUCCESS (0 zero), caso contrário, retorna CSIGNAL_ERROR (um valor negativo)
  */
-int csignal(csem_t *sem) {
-    return NOT_IMPLEMENTED;
+
+
+#define CSIGNAL_SUCCESS 0
+#define CSIGNAL_ERROR_UNINITIALIZED -1
+#define CSIGNAL_ERROR_REMOVE_THREAD_FROM_BLOCKED -2
+int csignal (csem_t *sem) {
+    initIfNeeded();
+    
+    if (debug) {
+        printf("************** CSIGNAL **************\n");
+    }
+    
+    if (sem->fila == NULL) {
+        if (debug) {
+            printf("Signal antes do wait ou semaforo nao inicializado");
+        }
+        return CSIGNAL_ERROR_UNINITIALIZED;
+    }
+    
+    if (FirstFila2(sem->fila) != 0) {
+        FREE(sem->fila);
+        return CSIGNAL_SUCCESS;
+    }
+    
+    sem->count++;
+    TCB_t* thread;
+    thread = (TCB_t*) GetAtIteratorFila2(sem->fila);
+    thread->state = THREAD_STATE_READY;
+    
+    //    print_all_queues();
+    if (debug) {
+        printf("SIGNAL VAI LIBERAR THREAD: %d\n", thread->tid);
+    }
+    DeleteAtIteratorFila2(sem->fila);
+    
+    if (moveThread(thread->tid, &blocked, getQueueWithPriority(thread->prio)) != 0) {
+        if (debug) {
+            printf("Erro ao remover thread(%d) da fila de bloqueados", thread->tid);
+        }
+        return CSIGNAL_ERROR_REMOVE_THREAD_FROM_BLOCKED;
+    }
+    //    print_all_queues();
+    return CSIGNAL_SUCCESS;
 }
 
 /*!
